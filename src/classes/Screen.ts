@@ -65,12 +65,26 @@ class PointProjecter extends ScreenDimensions {
     super(width, height);
   }
   projectPoint(point: Point3D): Point2D {
-    //Si el punto está en z < 0, lo proyectamos fuera de la pantalla
-    if (point.z < 0) return new Point2D(2 * this.width, 2 * this.height);
-    let xProjected, yProjected;
-    xProjected = (point.x * this.width) / (2 * point.z);
-    yProjected = (point.y * this.height) / (2 * point.z);
-    return new Point2D(xProjected, yProjected);
+    //La fórmula anda mal si z=0 así que en ese caso lo aproximamos a 0
+    let z = point.z || 0.001;
+    if (point.z < 0) {
+      // Si el punto está en z<0, lo tenemos que proyectar en algún punto fuera de la pantalla
+      // Como Z es negativo, lo convertimos a positivo haciendo -z
+      // Luego, a la fórmula original, le añadimos el producto de x * -z * ancho o alto de la pantalla /2
+      // Que es el lugar fuera de la pantalla que le corresponde debido a que tiene que permanecer en
+      let xProjected, yProjected;
+      xProjected =
+        (point.x * this.width) / (2 * -z) + (this.width / 2) * point.x * -z;
+      yProjected =
+        (point.y * this.height) / (2 * -z) + (this.height / 2) * point.y * -z;
+      return new Point2D(xProjected, yProjected);
+    } else {
+      let xProjected, yProjected;
+      xProjected = (point.x * this.width) / (2 * z);
+      yProjected = (point.y * this.height) / (2 * z);
+      return new Point2D(xProjected, yProjected);
+    }
+    //return new Point2D(2 * this.width, 2 * this.height);
   }
   projectPoints(points: Point3D[]): Point2D[] {
     let projectedPoints = points.map((point) => {
