@@ -1,59 +1,66 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ScreenClass } from "../classes/Screen";
 import { objects } from "../objects/objects";
+
 const width = 600;
 const height = 600;
 
 const Screen = () => {
   const [clicks, setClicks] = useState(0);
-  const [screen, setScreen]: [
-    ScreenClass | undefined,
-    React.Dispatch<React.SetStateAction<ScreenClass | undefined>>
-  ] = useState();
+  const [screen, setScreen] = useState<ScreenClass | undefined>(undefined);
   const [automaticRotation, setAutomaticRotation] = useState(false);
+
   useEffect(() => {
-    console.log(automaticRotation);
+    let timeoutId: ReturnType<typeof setTimeout>;
+  
+    const tick = () => {
+      if (screen && automaticRotation) {
+        objects.observer.rotateByAngle(Math.PI / 180, 0);
+        manageScreen();
+        timeoutId = setTimeout(tick, 2000 / 360);
+      }
+    };
+  
     if (screen && automaticRotation) {
-      objects.observer.rotateByAngle(Math.PI / 180, 0);
-      manageScreen();
+      timeoutId = setTimeout(tick, 2000 / 360);
     }
-  }, [screen]);
+  
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [screen, automaticRotation]);
+
   function initializeScreen(ctx: CanvasRenderingContext2D) {
-    const screen = new ScreenClass(ctx, width, height);
-    screen.ctx.translate(width / 2, height / 2);
-    screen.ctx.scale(1, -1);
-    //screen.drawFuguePoint();
-    screen.drawHorizon();
-    screen.draw(objects);
-    setClicks(clicks + 1);
-    setScreen(screen);
+    const newScreen = new ScreenClass(ctx, width, height);
+    newScreen.ctx.translate(width / 2, height / 2);
+    newScreen.ctx.scale(1, -1);
+    newScreen.draw(objects);
+    // Usar función de actualización para evitar problemas con el valor anterior
+    setClicks((prev) => prev + 1);
+    setScreen(newScreen);
   }
 
   function manageScreen() {
-    const canvasMonad = document.getElementById(
-      "canvas"
-    ) as HTMLCanvasElement | null;
+    const canvasMonad = document.getElementById("canvas") as HTMLCanvasElement | null;
     if (!canvasMonad) return;
-    const canvas = canvasMonad;
-    canvas.width = width;
-    const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
-    if (clicks === 0) {
+    canvasMonad.width = width;
+    const ctx = canvasMonad.getContext("2d") as CanvasRenderingContext2D;
+    if (clicks === 0 || !screen) {
       initializeScreen(ctx);
       return;
     }
     ctx.clearRect(0, 0, width, height);
-    if (screen) {
-      const newScreen = new ScreenClass(ctx, width, height);
-      newScreen.ctx.translate(width / 2, height / 2);
-      newScreen.ctx.scale(1, -1);
-      objects.translateObjects();
-      objects.rotateObjects();
-      objects.observer.reset();
-      newScreen.drawHorizon();
-      newScreen.draw(objects);
-      setScreen(newScreen);
-    }
+    const newScreen = new ScreenClass(ctx, width, height);
+    newScreen.ctx.translate(width / 2, height / 2);
+    newScreen.ctx.scale(1, -1);
+    objects.translateObjects();
+    objects.rotateObjects();
+    objects.observer.reset();
+    newScreen.draw(objects);
+    setScreen(newScreen);
   }
+
+  // Funciones de manejo de movimientos y rotaciones
   function manageAdvanceX() {
     objects.observer.advanceX();
     manageScreen();
@@ -79,21 +86,64 @@ const Screen = () => {
     manageScreen();
   }
   function manageLookUp() {
-    objects.observer.rotateUp20deg();
+    objects.observer.rotateByAngle(0, Math.PI / 180 * 2);
     manageScreen();
   }
   function manageLookDown() {
-    objects.observer.rotateDown20deg();
+    objects.observer.rotateByAngle(0, Math.PI / 180 * -2);
     manageScreen();
   }
   function manageRotateLeft() {
-    objects.observer.rotateLeft20deg();
+    objects.observer.rotateByAngle(Math.PI / 180 * -2, 0);
     manageScreen();
   }
   function manageRotateRight() {
-    objects.observer.rotateRight20deg();
+    objects.observer.rotateByAngle(Math.PI / 180 * 2, 0);
     manageScreen();
   }
+
+  const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    switch (event.code) {
+      case "Space":
+        manageAdvanceY();
+        break;
+      case "ShiftLeft":
+        manageRetreatY();
+        break;
+      case "KeyA":
+        manageRetreatX();
+        break;
+      case "KeyD":
+        manageAdvanceX();
+        break;
+      case "KeyW":
+        manageAdvanceZ();
+        break;
+      case "KeyS":
+        manageRetreatZ();
+        break;
+      case "ArrowUp":
+        manageLookUp();
+        break;
+      case "ArrowDown":
+        manageLookDown();
+        break;
+      case "ArrowLeft":
+        manageRotateLeft();
+        break;
+      case "ArrowRight":
+        manageRotateRight();
+        break;
+      default:
+        break;
+    }
+  }, [screen, clicks]);
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+
   return (
     <>
       <canvas
@@ -101,22 +151,13 @@ const Screen = () => {
         width={`${width}px`}
         height={`${height}px`}
         style={{ border: "1px solid black" }}
-        onClick={() => manageScreen()}
+        onClick={manageScreen}
+        tabIndex={0}
       ></canvas>
       <div>
-        <button onClick={() => manageAdvanceX()}>AdvanceX</button>
-        <button onClick={() => manageAdvanceY()}>AdvanceY</button>
-        <button onClick={() => manageAdvanceZ()}>AdvanceZ</button>
-        <button onClick={() => manageRetreatX()}>RetreatX</button>
-        <button onClick={() => manageRetreatY()}>RetreatY</button>
-        <button onClick={() => manageRetreatZ()}>RetreatZ</button>
-        <button onClick={() => manageLookUp()}>LookUp</button>
-        <button onClick={() => manageLookDown()}>LookDown</button>
-        <button onClick={() => manageRotateLeft()}>RotateLeft</button>
-        <button onClick={() => manageRotateRight()}>RotateRight</button>
-        <button onClick={() => setAutomaticRotation(!automaticRotation)}>
-          Toggle Automatic Rotation
-        </button>
+      <button onClick={() => setAutomaticRotation((prev) => !prev)}>
+        Toggle Automatic Rotation
+      </button>
       </div>
     </>
   );
